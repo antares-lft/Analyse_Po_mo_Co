@@ -15,7 +15,7 @@ This is an R Markdown document. Markdown is a simple formatting syntax for autho
 When you click the **Knit** button a document will be generated that includes both content as well as the output of any embedded R code chunks within the document. You can embed an R code chunk like this:
 
 ```{r cars}
-# On utilise les librairies.
+# Libraries importation.
 library(tidyverse)
 ```
 
@@ -24,16 +24,16 @@ library(tidyverse)
 You can also embed plots, for example:
 
 ```{r pressure, echo=FALSE}
-# Dossier contenant les fichiers
+# Where are the files?
 dossier <- "/home/alafitte/Internship/Rapport de stage/Données"
-fichiers <- file.path(dossier, paste0("resultats_final_", 1:6, ".csv"))
+fichiers <- file.path(dossier, paste0("resultats_final_", 1:6, ".csv")) #I did 6 simulations
 
-# Lire les fichiers et ajouter une colonne "source" pour tracer l’origine
+# Lecture of the files and creation of the sources
 donnees_list <- fichiers %>%
   lapply(read_csv, col_types = cols()) %>%
   set_names(paste0("fichier_", 1:6))
 
-# Ajouter l'identifiant de fichier et fusionner
+# Add the identification
 donnees <- bind_rows(
   lapply(seq_along(donnees_list), function(i) {
     df <- donnees_list[[i]]
@@ -42,14 +42,14 @@ donnees <- bind_rows(
   })
 )
 
-# Vérifier les noms de colonnes
+# Just to verify the data that I extracted
 print(colnames(donnees))
 
-# Sélectionner et convertir les colonnes utiles
+# Selection and conversion of the useful colonnes
 donnees <- donnees %>%
   mutate(across(c(Pin, Nw_sum, Pis, Sw_sum), as.numeric))
 
-# Calcul des moyennes par espèce sur les 6 fichiers
+# Calculus of the mean with the number of files
 moyennes_par_espece <- donnees %>%
   group_by(species) %>%
   summarise(
@@ -60,11 +60,11 @@ moyennes_par_espece <- donnees %>%
     .groups = "drop"
   )
 
-# Appliquer la formule pour chaque espèce
+# Applicate the formula
 resultat <- moyennes_par_espece %>%
   mutate(valeur = (moy_Pin / moy_Pis ) / (moy_Nw_sum/ moy_Sw_sum))
 
-# Afficher le tableau final
+# Show the final table
 print(resultat)
 ```
 ```{r cars }
