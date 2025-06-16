@@ -1,0 +1,244 @@
+---
+title: "Analyse dN_dS et pN_pS"
+output: html_document
+date: "2025-06-12"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## R Markdown
+
+This is an R Markdown document. Markdown is a simple formatting syntax for authoring HTML, PDF, and MS Word documents. For more details on using R Markdown see <http://rmarkdown.rstudio.com>.
+
+When you click the **Knit** button a document will be generated that includes both content as well as the output of any embedded R code chunks within the document. You can embed an R code chunk like this:
+
+```{r cars}
+# On utilise les librairies.
+library(tidyverse)
+```
+
+## Including Plots
+
+You can also embed plots, for example:
+
+```{r pressure, echo=FALSE}
+# Dossier contenant les fichiers
+dossier <- "/home/alafitte/Internship/Rapport de stage/Données"
+fichiers <- file.path(dossier, paste0("resultats_final_", 1:6, ".csv"))
+
+# Lire les fichiers et ajouter une colonne "source" pour tracer l’origine
+donnees_list <- fichiers %>%
+  lapply(read_csv, col_types = cols()) %>%
+  set_names(paste0("fichier_", 1:6))
+
+# Ajouter l'identifiant de fichier et fusionner
+donnees <- bind_rows(
+  lapply(seq_along(donnees_list), function(i) {
+    df <- donnees_list[[i]]
+    df$fichier <- paste0("fichier_", i)
+    df
+  })
+)
+
+# Vérifier les noms de colonnes
+print(colnames(donnees))
+
+# Sélectionner et convertir les colonnes utiles
+donnees <- donnees %>%
+  mutate(across(c(Pin, Nw_sum, Pis, Sw_sum), as.numeric))
+
+# Calcul des moyennes par espèce sur les 6 fichiers
+moyennes_par_espece <- donnees %>%
+  group_by(species) %>%
+  summarise(
+    moy_Pin    = mean(Pin, na.rm = TRUE),
+    moy_Nw_sum = mean(Nw_sum, na.rm = TRUE),
+    moy_Pis    = mean(Pis, na.rm = TRUE),
+    moy_Sw_sum = mean(Sw_sum, na.rm = TRUE),
+    .groups = "drop"
+  )
+
+# Appliquer la formule pour chaque espèce
+resultat <- moyennes_par_espece %>%
+  mutate(valeur = (moy_Pin / moy_Pis ) / (moy_Nw_sum/ moy_Sw_sum))
+
+# Afficher le tableau final
+print(resultat)
+```
+```{r cars }
+library(tidyverse)
+
+# Charger les fichiers
+dossier <- "/home/alafitte/Internship/Rapport de stage/Données"
+fichiers <- file.path(dossier, paste0("resultats_final_", 1:6, ".csv"))
+
+donnees_list <- fichiers %>%
+  lapply(read_csv, col_types = cols()) %>%
+  set_names(paste0("fichier_", 1:6))
+
+donnees <- bind_rows(
+  lapply(seq_along(donnees_list), function(i) {
+    df <- donnees_list[[i]]
+    df$fichier <- paste0("fichier_", i)
+    df
+  })
+)
+
+# Conversion des colonnes nécessaires
+donnees <- donnees %>%
+  mutate(across(c(pN_pS, taille_pop), as.numeric))
+
+# Calcul des moyennes et IC 95% par espèce
+t_value <- 2.571  # t de Student à 95% pour df = 5
+
+resume_stats <- donnees %>%
+  group_by(species, taille_pop) %>%
+  summarise(
+    moy_pNpS = mean(pN_pS, na.rm = TRUE),
+    sd_pNpS = sd(pN_pS, na.rm = TRUE),
+    n = n(),
+    .groups = "drop"
+  ) %>%
+  mutate(
+    se = sd_pNpS / sqrt(n),
+    ic95_low = moy_pNpS - t_value * se,
+    ic95_high = moy_pNpS + t_value * se
+  )
+
+# Graphique avec points individuels + moyenne + IC95
+ggplot() +
+  # Points individuels en orange
+  geom_point(data = donnees, aes(x = taille_pop, y = pN_pS), 
+             color = "orange", alpha = 0.6, size = 2) +
+  
+  # Moyenne par espèce en carré bleu
+  geom_point(data = resume_stats, aes(x = taille_pop, y = moy_pNpS), 
+             shape = 15, color = "blue", size = 3.5) +
+  
+  # Barres d'erreur IC 95%
+  geom_errorbar(data = resume_stats,
+                aes(x = taille_pop, ymin = ic95_low, ymax = ic95_high),
+                width = 0.1, color = "blue") +
+  
+  scale_x_log10() +
+  theme_minimal() +
+  labs(
+    title = "Mean and individuals pN/pS",
+    x = "Population size",
+    y = "pN/pS"
+  )
+```
+Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.
+```{r pressure, echo=FALSE}
+# Dossier contenant les fichiers
+dossier <- "/home/alafitte/Internship/Rapport de stage/Données"
+fichiers <- file.path(dossier, paste0("resultats_final_", 1:6, ".csv"))
+
+# Lire les fichiers et ajouter une colonne "source" pour tracer l’origine
+donnees_list <- fichiers %>%
+  lapply(read_csv, col_types = cols()) %>%
+  set_names(paste0("fichier_", 1:6))
+
+# Ajouter l'identifiant de fichier et fusionner
+donnees <- bind_rows(
+  lapply(seq_along(donnees_list), function(i) {
+    df <- donnees_list[[i]]
+    df$fichier <- paste0("fichier_", i)
+    df
+  })
+)
+
+# Vérifier les noms de colonnes
+print(colnames(donnees))
+
+# Sélectionner et convertir les colonnes utiles
+donnees <- donnees %>%
+  mutate(across(c(dN, Nw_sum.1, dS, Sw_sum.1), as.numeric))
+
+# Calcul des moyennes par espèce sur les 6 fichiers
+moyennes_par_espece <- donnees %>%
+  group_by(species) %>%
+  summarise(
+    moy_dN    = mean(dN, na.rm = TRUE),
+    moy_Nw_sum.1 = mean(Nw_sum.1, na.rm = TRUE),
+    moy_dS   = mean(dS, na.rm = TRUE),
+    moy_Sw_sum.1 = mean(Sw_sum.1, na.rm = TRUE),
+    .groups = "drop"
+  )
+
+# Appliquer la formule pour chaque espèce
+resultat <- moyennes_par_espece %>%
+  mutate(valeur = (moy_dN / moy_dS) / (moy_Nw_sum.1/ moy_Sw_sum.1))
+
+# Afficher le tableau final
+print(resultat)
+```
+
+
+
+
+```{r cars }
+library(tidyverse)
+
+# Charger les fichiers
+dossier <- "/home/alafitte/Internship/Rapport de stage/Données"
+fichiers <- file.path(dossier, paste0("resultats_final_", 1:6, ".csv"))
+
+donnees_list <- fichiers %>%
+  lapply(read_csv, col_types = cols()) %>%
+  set_names(paste0("fichier_", 1:6))
+
+donnees <- bind_rows(
+  lapply(seq_along(donnees_list), function(i) {
+    df <- donnees_list[[i]]
+    df$fichier <- paste0("fichier_", i)
+    df
+  })
+)
+
+# Conversion des colonnes nécessaires
+donnees <- donnees %>%
+  mutate(across(c(pN_pS, taille_pop), as.numeric))
+
+# Calcul des moyennes et IC 95% par espèce
+t_value <- 2.571  # t de Student à 95% pour df = 5
+
+resume_stats <- donnees %>%
+  group_by(species, taille_pop) %>%
+  summarise(
+    moy_dNdS = mean(dN_dS, na.rm = TRUE),
+    sd_dNdS = sd(dN_dS, na.rm = TRUE),
+    n = n(),
+    .groups = "drop"
+  ) %>%
+  mutate(
+    se = sd_dNdS / sqrt(n),
+    ic95_low = moy_dNdS - t_value * se,
+    ic95_high = moy_dNdS + t_value * se
+  )
+
+# Graphique avec points individuels + moyenne + IC95
+ggplot() +
+  # Points individuels en orange
+  geom_point(data = donnees, aes(x = taille_pop, y = dN_dS), 
+             color = "orange", alpha = 0.6, size = 2) +
+  
+  # Moyenne par espèce en carré bleu
+  geom_point(data = resume_stats, aes(x = taille_pop, y = moy_dNdS), 
+             shape = 15, color = "blue", size = 3.5) +
+  
+  # Barres d'erreur IC 95%
+  geom_errorbar(data = resume_stats,
+                aes(x = taille_pop, ymin = ic95_low, ymax = ic95_high),
+                width = 0.1, color = "blue") +
+  
+  scale_x_log10() +
+  theme_minimal() +
+  labs(
+    title = "Mean and individuals dN/dS",
+    x = "Population size",
+    y = "dN/dS"
+  )
+```
