@@ -1,23 +1,19 @@
-# Installer les packages nécessaires
-if (!requireNamespace("treeio", quietly = TRUE)) install.packages("treeio")
-if (!requireNamespace("ggtree", quietly = TRUE)) install.packages("ggtree")
-
-# Charger les packages
+# Charge packages
 library(treeio)
 library(ggtree)
 
-# Lire l'arbre avec les annotations NHX
+# Read the tree
 arbre <- read.nhx("/home/alafitte/Internship/Rapport de stage/Arbre/bat_genes_complete_filtered-PhyML_tree.nhx")
 
-# Afficher la table des données associées à chaque nœud
+# Show data associed to each node
 head(arbre@data)
 
-# Visualiser l'arbre avec ggtree et couleur selon la taille de population W
+# Visualize the tree
 p <- ggtree(arbre, aes(color = as.numeric(W))) + 
   geom_tiplab() + 
   scale_color_viridis_c(option = "plasma") + 
   theme_tree2() + 
   ggtitle("Visualisation phylogenetic tree")
 
-# Afficher
+# Showing the tree
 print(p)
