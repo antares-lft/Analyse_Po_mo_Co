@@ -1,0 +1,68 @@
+---
+title: "Tree visualisation"
+output: html_document
+date: "2025-06-17"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## R Markdown
+
+This is an R Markdown document. Markdown is a simple formatting syntax for authoring HTML, PDF, and MS Word documents. For more details on using R Markdown see <http://rmarkdown.rstudio.com>.
+
+When you click the **Knit** button a document will be generated that includes both content as well as the output of any embedded R code chunks within the document. You can embed an R code chunk like this:
+
+```{r cars}
+# Charger les packages
+library(treeio)
+library(ggtree)
+
+# Lire l'arbre avec les annotations NHX
+arbre <- read.nhx("/home/alafitte/Internship/Rapport de stage/Arbre/bat_genes_complete_filtered-PhyML_tree.nhx")
+
+# Afficher la table des données associées à chaque nœud
+head(arbre@data)
+
+# Visualiser l'arbre avec ggtree et couleur selon la taille de population W
+p <- ggtree(arbre, aes(color = log10(as.numeric(W)))) + 
+  geom_tiplab() + 
+  scale_color_viridis_c(option = "plasma") + 
+  theme_tree2() + 
+  ggtitle("Visualisation phylogenetic tree")
+
+# Afficher
+print(p)
+```
+
+## Including Plots
+
+You can also embed plots, for example:
+
+```{r pressure, echo=FALSE}
+# Charger les packages
+library(treeio)
+library(ggtree)
+library(dplyr)
+
+# Lire l'arbre avec les annotations NHX
+arbre <- read.nhx("/home/alafitte/Internship/Rapport de stage/Arbre/bat_genes_complete_filtered-PhyML_tree.nhx")
+
+# Identifier les nœuds internes et terminaux
+arbre@data <- arbre@data %>%
+  mutate(type = ifelse(node <= length(arbre@phylo$tip.label), "External", "Internal"))
+
+# Visualiser l'arbre avec couleur rouge (branches internes) et bleu (branches terminales)
+p <- ggtree(arbre, aes(color = type)) +
+  geom_tiplab() +
+  scale_color_manual(values = c("External" = "blue", "Internal" = "red")) +
+  theme_tree2() +
+  ggtitle("Branches internes (rouge) vs terminales (bleu)")
+
+# Afficher
+print(p)
+
+```
+
+Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.
