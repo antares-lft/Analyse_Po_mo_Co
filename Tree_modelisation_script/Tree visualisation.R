@@ -9,7 +9,7 @@ arbre <- read.nhx("/home/alafitte/Internship/Rapport de stage/Arbre/bat_genes_co
 head(arbre@data)
 
 # Visualize the tree
-p <- ggtree(arbre, aes(color = as.numeric(W))) + 
+p <- ggtree(arbre, aes(color = log10(as.numeric(W)))) + 
   geom_tiplab() + 
   scale_color_viridis_c(option = "plasma") + 
   theme_tree2() + 
