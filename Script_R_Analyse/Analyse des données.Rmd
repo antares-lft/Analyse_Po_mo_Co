@@ -172,133 +172,155 @@ ggplot(data_by_species, aes(x = log10_taille_pop, y = moyenne_points, color = lo
 ```
 Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.
 ```{r pressure, echo=FALSE}
+# Load required libraries
 library(tidyverse)
 
-# Charger les fichiers
-dossier <- "/home/alafitte/Internship/Rapport de stage/Données"
-fichiers <- file.path(dossier, sprintf("resultats_final_%02d.csv", 1:20))
+# Define the folder path containing the CSV files
+folder_path <- "/home/alafitte/Internship/Rapport de stage/Données"
 
-donnees_list <- fichiers %>%
+# Generate full file paths for the 20 CSV files named resultats_final_01.csv to resultats_final_20.csv
+file_paths <- file.path(folder_path, sprintf("resultats_final_%02d.csv", 1:20))
+
+# Read each CSV into a list of data frames and name each element for easy reference
+data_list <- file_paths %>%
   lapply(read_csv, col_types = cols()) %>%
-  set_names(sprintf("fichier_%02d", 1:20))
+  set_names(sprintf("file_%02d", 1:20))
 
-donnees <- bind_rows(
-  lapply(seq_along(donnees_list), function(i) {
-    df <- donnees_list[[i]]
-    df$fichier <- paste0("fichier_", i)
+# Combine all data frames into one big data frame, adding a column to identify the source file
+data <- bind_rows(
+  lapply(seq_along(data_list), function(i) {
+    df <- data_list[[i]]
+    df$file <- paste0("file_", i)  # Add file identifier column
     df
   })
 )
 
-# Nettoyage + transformation
-donnees <- donnees %>%
-  mutate(
-    across(c(dN_dS, taille_pop, Pis, branch_length), as.numeric)
-  ) %>%
-  filter(Pis > 0, dN_dS > 0) %>%  # éviter log10(0)
+# Data cleaning and transformation:
+data <- data %>%
+  # Ensure selected columns are numeric
+  mutate(across(c(dN_dS, taille_pop, Pis, branch_length), as.numeric)) %>%
+  # Filter out rows where Pis or dN_dS are zero or negative (to avoid issues with log10)
+  filter(Pis > 0, dN_dS > 0) %>%
+  # Create log10-transformed columns for Pis and dN/dS
   mutate(
     log10_Pis = log10(Pis),
     log10_dN_dS = log10(dN_dS)
   ) %>%
-  # Filtrer NA, Inf, NaN dans les colonnes pour la régression
+  # Remove rows with NA, infinite or NaN values in the log-transformed columns, which would break the regression
   filter(
     !is.na(log10_Pis), !is.infinite(log10_Pis), !is.nan(log10_Pis),
     !is.na(log10_dN_dS), !is.infinite(log10_dN_dS), !is.nan(log10_dN_dS)
   )
 
-# === Régression linéaire ===
-modele <- lm(log10_dN_dS ~ log10_Pis, data = donnees)
-summary_modele <- summary(modele)
-coefs <- summary_modele$coefficients
+# === Linear regression: model log10(dN/dS) as a function of log10(Pis) ===
+model <- lm(log10_dN_dS ~ log10_Pis, data = data)
 
-# Extraire le R² et p-value
-r2 <- round(summary_modele$r.squared, 3)
-pval <- signif(coefs[2, 4], 3)
+# Extract the summary and coefficients
+model_summary <- summary(model)
+coefficients <- model_summary$coefficients
 
-r2_label <- paste0("R² = ", r2)
-pval_label <- paste0("p = ", pval)
+# Extract R-squared and p-value for the slope coefficient, rounded for readability
+r_squared <- round(model_summary$r.squared, 3)
+p_value <- signif(coefficients[2, 4], 3)
 
-# === Graphique avec gradient de couleur ===
-ggplot(donnees, aes(x = log10_Pis, y = log10_dN_dS, color = branch_length)) +
-  geom_point(alpha = 0.8, size = 2.5) +
-  geom_smooth(method = "lm", se = TRUE, color = "black", fill = "grey80") +
-  annotate("text", x = min(donnees$log10_Pis, na.rm = TRUE), 
-           y = max(donnees$log10_dN_dS, na.rm = TRUE), 
-           label = r2_label, hjust = 0, size = 4.5) +
-  annotate("text", x = min(donnees$log10_Pis, na.rm = TRUE), 
-           y = max(donnees$log10_dN_dS, na.rm = TRUE) - 0.15, 
-           label = pval_label, hjust = 0, size = 4.5) +
-  scale_color_viridis_c(option = "plasma", name = "Branch length") +
+# Prepare labels for plot annotation
+r2_label <- paste0("R² = ", r_squared)
+pval_label <- paste0("p = ", p_value)
+
+# === Plot with color gradient representing branch length ===
+ggplot(data, aes(x = log10_Pis, y = log10_dN_dS, color = branch_length)) +
+  geom_point(alpha = 0.8, size = 2.5) +                    # Scatter plot points
+  geom_smooth(method = "lm", se = TRUE, color = "black", fill = "grey80") +  # Regression line with confidence interval
+  annotate("text", 
+           x = min(data$log10_Pis, na.rm = TRUE), 
+           y = max(data$log10_dN_dS, na.rm = TRUE), 
+           label = r2_label, hjust = 0, size = 4.5) +       # Annotate R² on top-left
+  annotate("text", 
+           x = min(data$log10_Pis, na.rm = TRUE), 
+           y = max(data$log10_dN_dS, na.rm = TRUE) - 0.15, 
+           label = pval_label, hjust = 0, size = 4.5) +     # Annotate p-value just below R²
+  scale_color_viridis_c(option = "plasma", name = "Branch length") +  # Color scale for branch length
   theme_minimal() +
   labs(
-    title = "log(dN/dS) ~ log(dS)",
+    title = "log(dN/dS) ~ log(pS)",
     x = "log10(pS)",
     y = "log10(dN/dS)"
   )
-
 ```
 
 
 
-
 ```{r cars }
+# Load required libraries
 library(tidyverse)
 
-# Charger les fichiers
-dossier <- "/home/alafitte/Internship/Rapport de stage/Données"
-fichiers <- file.path(dossier, sprintf("resultats_final_%02d.csv", 1:20))
+# Define the folder path containing the CSV files
+folder_path <- "/home/alafitte/Internship/Rapport de stage/Données"
 
-donnees_list <- fichiers %>%
+# Generate full file paths for the 20 CSV files named resultats_final_01.csv to resultats_final_20.csv
+file_paths <- file.path(folder_path, sprintf("resultats_final_%02d.csv", 1:20))
+
+# Read each CSV into a list of data frames, naming each element for easier tracking
+data_list <- file_paths %>%
   lapply(read_csv, col_types = cols()) %>%
-  set_names(sprintf("fichier_%02d", 1:20))
+  set_names(sprintf("file_%02d", 1:20))
 
-donnees <- bind_rows(
-  lapply(seq_along(donnees_list), function(i) {
-    df <- donnees_list[[i]]
-    df$fichier <- paste0("fichier_", i)
+# Combine all data frames into a single data frame,
+# adding a column indicating the source file for each row
+data <- bind_rows(
+  lapply(seq_along(data_list), function(i) {
+    df <- data_list[[i]]
+    df$file <- paste0("file_", i)  # Add source file identifier
     df
   })
 )
 
-# Nettoyage + transformation
-donnees <- donnees %>%
-  mutate(
-    across(c(pN_pS, taille_pop, Pis, branch_length), as.numeric)
-  ) %>%
-  filter(Pis > 0, pN_pS > 0) %>%  # éviter log10(0)
+# Data cleaning and transformation:
+data <- data %>%
+  # Ensure selected columns are numeric
+  mutate(across(c(pN_pS, taille_pop, Pis, branch_length), as.numeric)) %>%
+  # Filter out rows where Pis or pN/pS are zero or negative (to avoid log10 issues)
+  filter(Pis > 0, pN_pS > 0) %>%
+  # Create log10-transformed variables for Pis and pN/pS
   mutate(
     log10_Pis = log10(Pis),
     log10_pN_pS = log10(pN_pS)
   )
 
-# === Régression linéaire ===
-modele <- lm(log10_pN_pS ~ log10_Pis, data = donnees)
-summary_modele <- summary(modele)
-coefs <- summary_modele$coefficients
+# === Linear regression: model log10(pN/pS) as a function of log10(Pis) ===
+model <- lm(log10_pN_pS ~ log10_Pis, data = data)
 
-# Extraire le R² et p-value
-r2 <- round(summary_modele$r.squared, 3)
-pval <- signif(coefs[2, 4], 3)
+# Summarize the model to extract coefficients and statistics
+model_summary <- summary(model)
+coefficients <- model_summary$coefficients
 
-r2_label <- paste0("R² = ", r2)
-pval_label <- paste0("p = ", pval)
+# Extract R-squared and p-value for the slope term, rounding for clarity
+r_squared <- round(model_summary$r.squared, 3)
+p_value <- signif(coefficients[2, 4], 3)
 
-# === Graphique avec gradient de couleur ===
-ggplot(donnees, aes(x = log10_Pis, y = log10_pN_pS, color = branch_length)) +
-  geom_point(alpha = 0.8, size = 2.5) +
-  geom_smooth(method = "lm", se = TRUE, color = "black", fill = "grey80") +
-  annotate("text", x = min(donnees$log10_Pis, na.rm = TRUE), 
-           y = max(donnees$log10_pN_pS, na.rm = TRUE), 
-           label = r2_label, hjust = 0, size = 4.5) +
-  annotate("text", x = min(donnees$log10_Pis, na.rm = TRUE), 
-           y = max(donnees$log10_pN_pS, na.rm = TRUE) - 0.15, 
-           label = pval_label, hjust = 0, size = 4.5) +
-  scale_color_viridis_c(option = "plasma", name = "Branch length") +
+# Prepare labels for plot annotations
+r2_label <- paste0("R² = ", r_squared)
+pval_label <- paste0("p = ", p_value)
+
+# === Plot the data with a color gradient based on branch length ===
+ggplot(data, aes(x = log10_Pis, y = log10_pN_pS, color = branch_length)) +
+  geom_point(alpha = 0.8, size = 2.5) +  # Scatter plot with semi-transparent points
+  geom_smooth(method = "lm", se = TRUE, color = "black", fill = "grey80") +  # Linear regression line with confidence interval
+  annotate("text", 
+           x = min(data$log10_Pis, na.rm = TRUE), 
+           y = max(data$log10_pN_pS, na.rm = TRUE), 
+           label = r2_label, hjust = 0, size = 4.5) +  # Add R² label top-left
+  annotate("text", 
+           x = min(data$log10_Pis, na.rm = TRUE), 
+           y = max(data$log10_pN_pS, na.rm = TRUE) - 0.15, 
+           label = pval_label, hjust = 0, size = 4.5) +  # Add p-value label just below R²
+  scale_color_viridis_c(option = "plasma", name = "Branch length") +  # Color scale for branch length
   theme_minimal() +
   labs(
     title = "log(pN/pS) ~ log(pS)",
     x = "log10(pS)",
     y = "log10(pN/pS)"
   )
+
 
 ```
