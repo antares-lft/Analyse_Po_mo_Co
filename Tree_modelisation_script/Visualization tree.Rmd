@@ -15,53 +15,44 @@ This is an R Markdown document. Markdown is a simple formatting syntax for autho
 When you click the **Knit** button a document will be generated that includes both content as well as the output of any embedded R code chunks within the document. You can embed an R code chunk like this:
 
 ```{r cars}
-# Charger les packages
-library(treeio)
-library(ggtree)
+# Load required packages for tree manipulation and visualization
+library(treeio)    # For reading phylogenetic trees with annotations
+library(ggtree)    # For plotting and annotating phylogenetic trees
+library(dplyr)     # For data manipulation
 
-# Lire l'arbre avec les annotations NHX
-arbre <- read.nhx("/home/alafitte/Internship/Rapport de stage/Arbre/bat_genes_complete_filtered-PhyML_tree.nhx")
+# Read the phylogenetic tree with NHX annotations from the specified file path
+tree <- read.nhx("/home/alafitte/Internship/Rapport de stage/Arbre/bat_genes_complete_filtered-PhyML_tree.nhx")
 
-# Afficher la table des données associées à chaque nœud
-head(arbre@data)
+# Display the data table associated with each node in the tree
+head(tree@data)
 
-# Visualiser l'arbre avec ggtree et couleur selon la taille de population W
-p <- ggtree(arbre, aes(color = log10(as.numeric(W)))) + 
-  geom_tiplab() + 
-  scale_color_viridis_c(option = "plasma") + 
-  theme_tree2() + 
-  ggtitle("Visualisation phylogenetic tree")
+# Add a column to identify node types: 'External' for tips, 'Internal' for internal nodes
+tree@data <- tree@data %>%
+  mutate(type = ifelse(node <= length(tree@phylo$tip.label), "External", "Internal"))
 
-# Afficher
-print(p)
-```
+# Visualize the phylogenetic tree using ggtree:
+# - Color branches by the log10 of population size (W) for the first plot,
+# - and color branches by node type ('External' or 'Internal') for the second plot.
 
-## Including Plots
+# Plot 1: Tree colored by log10 of population size (W)
+plot1 <- ggtree(tree, aes(color = log10(as.numeric(W)))) +  # Color branches by log10(W)
+  geom_tiplab() +                                          # Add tip labels (species names)
+  scale_color_viridis_c(option = "plasma") +               # Use viridis plasma color scale for clarity
+  theme_tree2() +                                           # Use tree theme with axis lines
+  ggtitle("Phylogenetic Tree Colored by log10(Population Size W)")
 
-You can also embed plots, for example:
+# Display plot 1
+print(plot1)
 
-```{r pressure, echo=FALSE}
-# Charger les packages
-library(treeio)
-library(ggtree)
-library(dplyr)
+# Plot 2: Tree colored by node type: internal (red) vs external tips (blue)
+plot2 <- ggtree(tree, aes(color = type)) +                 # Color branches by node type
+  geom_tiplab() +                                          # Add tip labels
+  scale_color_manual(values = c("External" = "blue", "Internal" = "red")) +  # Manual color mapping
+  theme_tree2() +                                           # Tree theme with axis lines
+  ggtitle("Internal (Red) vs External (Blue) Branches")
 
-# Lire l'arbre avec les annotations NHX
-arbre <- read.nhx("/home/alafitte/Internship/Rapport de stage/Arbre/bat_genes_complete_filtered-PhyML_tree.nhx")
-
-# Identifier les nœuds internes et terminaux
-arbre@data <- arbre@data %>%
-  mutate(type = ifelse(node <= length(arbre@phylo$tip.label), "External", "Internal"))
-
-# Visualiser l'arbre avec couleur rouge (branches internes) et bleu (branches terminales)
-p <- ggtree(arbre, aes(color = type)) +
-  geom_tiplab() +
-  scale_color_manual(values = c("External" = "blue", "Internal" = "red")) +
-  theme_tree2() +
-  ggtitle("Branches internes (rouge) vs terminales (bleu)")
-
-# Afficher
-print(p)
+# Display plot 2
+print(plot2)
 
 ```
 
