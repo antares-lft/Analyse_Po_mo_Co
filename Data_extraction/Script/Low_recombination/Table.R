@@ -124,9 +124,9 @@ analyze_species_from_newick_mod <- function(base_folder, newick_path, output_csv
 }
 
 # === Loop to generate the 20 CSV output files for replicates 1 to 20 ===
-base_folder_path <- "/home/alafitte/Internship/Results/Real_tree/Free_recombination"
+base_folder_path <- "/home/alafitte/Internship/Results/Real_tree/Low_recombination"
 newick_tree_file <- "/home/alafitte/bat_genes_complete_filtered-PhyML_tree.nhx"
-output_folder <- "/home/alafitte/Internship/Rapport de stage/Données/Free_recombination"
+output_folder <- "/home/alafitte/Internship/Rapport de stage/Données/Low_recombination"
 
 for (i in 1:20) {
   cat("\n===========================\n")
