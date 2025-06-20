@@ -24,7 +24,7 @@ library(tidyverse)
 library(tidyverse)
 
 # Folder path where CSV files are stored
-folder <- "/home/alafitte/Internship/Rapport de stage/Données/Low_recombination"
+folder <- "/home/alafitte/Internship/Rapport de stage/Données/Intermediate_recombination"
 
 # Generate file paths for the 20 CSV files
 files <- file.path(folder, sprintf("resultats_final_%02d.csv", 1:20))
@@ -85,7 +85,7 @@ You can also embed plots, for example:
 library(tidyverse)
 
 # Folder path where CSV files are stored
-folder <- "/home/alafitte/Internship/Rapport de stage/Données"
+folder <- "/home/alafitte/Internship/Rapport de stage/Données/Intermediate_recombination"
 
 # Generate file paths for the 20 CSV files
 files <- file.path(folder, sprintf("resultats_final_%02d.csv", 1:20))
@@ -153,7 +153,7 @@ Note that the `echo = FALSE` parameter was added to the code chunk to prevent pr
 library(tidyverse)
 
 # Charger les fichiers
-dossier <- "/home/alafitte/Internship/Rapport de stage/Données"
+dossier <- "/home/alafitte/Internship/Rapport de stage/Données/Intermediate_recombination"
 fichiers <- file.path(dossier, sprintf("resultats_final_%02d.csv", 1:20))
 
 donnees_list <- fichiers %>%
