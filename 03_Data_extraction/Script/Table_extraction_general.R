@@ -63,27 +63,27 @@ analyze_species_from_newick_mod <- function(base_folder, newick_path, output_csv
     pop_path  <- file.path(folder_path, paste0(sp, "_pop",  suffix))
     
     # Check if files exist, skip species if any are missing
-    if (!file.exists(pnps_path)) { cat("Missing file:", pnps_path, "\n"); next }
-    if (!file.exists(dnds_path)) { cat("Missing file:", dnds_path, "\n"); next }
-    if (!file.exists(pop_path))  { cat("Missing file:", pop_path,  "\n"); next }
+    if (!file.exists(pnps_path)) { cat("❌ Missing file:", pnps_path, "\n"); next }
+    if (!file.exists(dnds_path)) { cat("❌ Missing file:", dnds_path, "\n"); next }
+    if (!file.exists(pop_path))  { cat("❌ Missing file:", pop_path,  "\n"); next }
     
     # Read and process pN/pS file (ignore comment lines starting with '#')
     pnps_lines <- readLines(pnps_path, warn = FALSE)
     pnps_lines <- pnps_lines[!grepl("^#", pnps_lines)]
-    if (length(pnps_lines) == 0) { cat("pNpS file is empty\n"); next }
+    if (length(pnps_lines) == 0) { cat("⚠️  pNpS file is empty\n"); next }
     # Extract first 5 numeric values from the last line of the file
     pnps_values <- as.numeric(strsplit(tail(pnps_lines, 1), "\\s+")[[1]][1:5])
     
     # Read and process dN/dS file (similarly ignoring comment lines)
     dnds_lines <- readLines(dnds_path, warn = FALSE)
     dnds_lines <- dnds_lines[!grepl("^#", dnds_lines)]
-    if (length(dnds_lines) == 0) { cat("dNdS file is empty\n"); next }
+    if (length(dnds_lines) == 0) { cat("⚠️  dNdS file is empty\n"); next }
     dnds_values <- as.numeric(strsplit(tail(dnds_lines, 1), "\\s+")[[1]][1:5])
     
     # Read population size from pop file, expecting at least 3 lines with data
     pop_lines <- readLines(pop_path, warn = FALSE)
     numeric_lines <- pop_lines[!grepl("^#", pop_lines)]
-    if (length(numeric_lines) < 3) { cat("Not enough lines in pop file\n"); next }
+    if (length(numeric_lines) < 3) { cat("⚠️  Not enough lines in pop file\n"); next }
     taille_pop <- as.numeric(strsplit(numeric_lines[3], "\\s+")[[1]][2])
     
     # Retrieve the branch length for this species from the species dataframe
@@ -108,10 +108,10 @@ analyze_species_from_newick_mod <- function(base_folder, newick_path, output_csv
     ))
     
     # Print confirmation and summary for the current species
-    cat("pN/pS values:", paste(pnps_values, collapse = ", "), "\n")
-    cat("dN/dS values:", paste(dnds_values, collapse = ", "), "\n")
-    cat("Population size:", taille_pop, "\n")
-    cat("Branch length:", branch_length, "\n")
+    cat("✅ pN/pS values:", paste(pnps_values, collapse = ", "), "\n")
+    cat("✅ dN/dS values:", paste(dnds_values, collapse = ", "), "\n")
+    cat("✅ Population size:", taille_pop, "\n")
+    cat("✅ Branch length:", branch_length, "\n")
   }
   
   # Display the complete results table before exporting
@@ -120,20 +120,19 @@ analyze_species_from_newick_mod <- function(base_folder, newick_path, output_csv
   
   # Write the results to a CSV file
   write.csv(final_df, file = output_csv, row.names = FALSE)
-  cat("\n Data exported to:", output_csv, "\n")
+  cat("\n✅ Data exported to:", output_csv, "\n")
 }
 
 # === Loop to generate the 20 CSV output files for replicates 1 to 20 ===
-base_folder_path <- "/home/alafitte/Internship/Results/Real_tree/Low_recombination"
+base_folder_path <- "/home/alafitte/Internship/Results/Population_size/N1000/Intermediate_recombination"
 newick_tree_file <- "/home/alafitte/bat_genes_complete_filtered-PhyML_tree.nhx"
-output_folder <- "/home/alafitte/Internship/Rapport de stage/Données"
+output_folder <- "/home/alafitte/Internship/Rapport de stage/Données/Population_size/Intermediate_recombination/N1000"
 
 for (i in 1:20) {
   cat("\n===========================\n")
-  cat("Processing replicate:", i, "\n")
+  cat("🔁 Processing replicate:", i, "\n")
   cat("===========================\n")
   
   output_file <- sprintf("%s/resultats_final_%02d.csv", output_folder, i)
   analyze_species_from_newick_mod(base_folder_path, newick_tree_file, output_file, i)
 }
-
