@@ -27,7 +27,7 @@ library(tidyverse)
 folder <- "/home/alafitte/Internship/Rapport de stage/Données/Intermediate_recombination"
 
 # Generate file paths for the 20 CSV files
-files <- file.path(folder, sprintf("resultats_final_%02d.csv", 1:20))
+files <- file.path(folder, sprintf("resultats_final_%02d.csv", 1:100))
 
 # Read and combine all data
 combined_data <- files %>%
@@ -78,24 +78,90 @@ ggplot(donnees_par_espece, aes(x = log10_taille_pop, y = moyenne_points, color =
     x = "Population size (log10)",
     y = "pN/pS mean"
   )
+ggsave("/home/alafitte/Internship/Rapport de stage/Images/Results/Intermediate_recombination/Recent/Picture 1.png",width = 8, height = 6, dpi = 300)
 ```
 You can also embed plots, for example:
 
 ```{r cars}
 library(tidyverse)
 
-# Folder path where CSV files are stored
+# Paramètre : taux de mutation mu
+mu <- 1e-6  # à adapter si nécessaire
+L <- 1000
+
+# Dossier contenant les fichiers CSV
 folder <- "/home/alafitte/Internship/Rapport de stage/Données/Intermediate_recombination"
 
-# Generate file paths for the 20 CSV files
-files <- file.path(folder, sprintf("resultats_final_%02d.csv", 1:20))
+# Générer les chemins vers les fichiers
+files <- file.path(folder, sprintf("resultats_final_%02d.csv", 1:100))
 
-# Read and combine all data
+# Lecture et combinaison
+combined_data <- files %>%
+  map_dfr(read_csv, col_types = cols()) %>%
+  filter(!is.na(Pin), !is.na(Pis), !is.na(Nw_sum), !is.na(Sw_sum), !is.na(branch_length))
+
+# Agrégation par espèce
+donnees_par_espece <- combined_data %>%
+  group_by(species) %>%
+  summarise(
+    Pin_total = sum(Pin, na.rm = TRUE),
+    Pis_total = sum(Pis, na.rm = TRUE),
+    Nw_total = sum(Nw_sum, na.rm = TRUE),
+    Sw_total = sum(Sw_sum, na.rm = TRUE),
+    moyenne_branch_length = mean(branch_length, na.rm = TRUE),
+    .groups = "drop"
+  ) %>%
+  mutate(
+    # Estimation de Ne à partir de pS = Pis_total / (4 * mu)
+    Ne_estime = Pis_total * L / (4 * mu * Sw_total),
+    log10_Ne = log10(Ne_estime),
+    moyenne_points = (Pin_total / Pis_total) / (Nw_total / Sw_total),
+    log10_branch_length = log10(moyenne_branch_length)
+  ) %>%
+  filter(is.finite(moyenne_points), is.finite(log10_Ne))
+
+# Modèle linéaire : pN/pS ~ log10(Ne estimé)
+modele <- lm(moyenne_points ~ log10_Ne, data = donnees_par_espece)
+resume_modele <- summary(modele)
+r2 <- round(resume_modele$r.squared, 3)
+pval <- signif(coef(resume_modele)[2, 4], 3)
+
+# Graphique
+ggplot(donnees_par_espece, aes(x = log10_Ne, y = moyenne_points, color = log10_branch_length)) +
+  geom_point(size = 3) +
+  geom_smooth(method = "lm", se = TRUE, color = "black", fill = "lightgray") +
+  scale_color_viridis_c(option = "plasma", name = "Branch length (log10)") +
+  annotate("text",
+           x = max(donnees_par_espece$log10_Ne),
+           y = max(donnees_par_espece$moyenne_points),
+           label = paste0("R² = ", r2), hjust = 1, size = 4.5) +
+  annotate("text",
+           x = max(donnees_par_espece$log10_Ne),
+           y = max(donnees_par_espece$moyenne_points) - 0.1,
+           label = paste0("p = ", pval), hjust = 1, size = 4.5) +
+  theme_minimal() +
+  labs(
+    title = "pN/pS ~ log10",
+    x = "Ne estimated (log10)",
+    y = "pN/pS moyen"
+  )
+
+ggsave("/home/alafitte/Internship/Rapport de stage/Images/Results/Intermediate_recombination/Recent/pN_pS vs N estimated.png", width = 8, height = 6, dpi = 300)
+
+```
+
+
+```{r cars}
+library(tidyverse)
+
+# === Chargement des données empiriques ===
+folder <- "/home/alafitte/Internship/Rapport de stage/Données/Intermediate_recombination"
+files <- file.path(folder, sprintf("resultats_final_%02d.csv", 1:50))
+
 combined_data <- files %>%
   map_dfr(read_csv, col_types = cols()) %>%
   filter(!is.na(dN), !is.na(dS), !is.na(Nw_sum.1), !is.na(Sw_sum.1), !is.na(branch_length))
 
-# Group by species and population size to compute the sums
 donnees_par_espece <- combined_data %>%
   filter(!is.na(taille_pop), taille_pop > 0) %>%
   group_by(species, taille_pop) %>%
@@ -112,53 +178,177 @@ donnees_par_espece <- combined_data %>%
     log10_taille_pop = log10(taille_pop),
     log10_branch_length = log10(moyenne_branch_length)
   ) %>%
-  filter(is.finite(moyenne_points))  # Remove NaN/Inf if any
+  filter(is.finite(moyenne_points))
 
-# Linear model: dN/dS ~ log10(pop size)
+# === Données théoriques de Julia ===
+points_julia <- tibble(
+  taille_pop = c(100, 250, 500, 1000, 2500, 5000),
+  dnds = c(0.641439, 0.61255, 0.509405, 0.236966, 0.00802157, 3.88478e-05)
+) %>%
+  mutate(
+    log10_taille_pop = log10(taille_pop)
+  )
+
+# Régression linéaire Julia
+modele_julia <- lm(dnds ~ log10_taille_pop, data = points_julia)
+resume_julia <- summary(modele_julia)
+r2_julia <- round(resume_julia$r.squared, 3)
+
+# Régression linéaire simulation
 modele <- lm(moyenne_points ~ log10_taille_pop, data = donnees_par_espece)
 resume_modele <- summary(modele)
 r2 <- round(resume_modele$r.squared, 3)
 pval <- signif(coef(resume_modele)[2, 4], 3)
 
-# Plotting
-ggplot(donnees_par_espece, aes(x = log10_taille_pop, y = moyenne_points, color = log10_branch_length)) +
-  geom_point(size = 3) +
-  geom_smooth(method = "lm", se = TRUE, color = "black", fill = "lightgray") +
+# === Comparaison directe Julia vs simulation ===
+tailles_julia <- c(100, 250, 500, 1000, 2500, 5000)
+
+empirique_moyenne <- donnees_par_espece %>%
+  filter(taille_pop %in% tailles_julia) %>%
+  group_by(taille_pop) %>%
+  summarise(moyenne_sim = mean(moyenne_points), .groups = "drop") %>%
+  arrange(taille_pop)
+
+comparaison <- tibble(
+  taille_pop = tailles_julia,
+  dnds_julia = c(0.641439, 0.61255, 0.509405, 0.236966, 0.00802157, 3.88478e-05)
+) %>%
+  left_join(empirique_moyenne, by = "taille_pop") %>%
+  drop_na()
+
+r2_comparaison <- round(cor(comparaison$dnds_julia, comparaison$moyenne_sim)^2, 3)
+
+# === Graphique final ===
+ggplot() +
+  # Points empiriques (simulations)
+  geom_point(data = donnees_par_espece,
+             aes(x = log10_taille_pop, y = moyenne_points, color = log10_branch_length), size = 3) +
   scale_color_viridis_c(option = "plasma", name = "Branch length (log10)") +
+
+  # Régression simulations
+  geom_smooth(data = donnees_par_espece,
+              aes(x = log10_taille_pop, y = moyenne_points),
+              method = "lm", se = TRUE, color = "black", fill = "lightgray") +
+
+  # Points Julia
+  geom_point(data = points_julia,
+             aes(x = log10_taille_pop, y = dnds),
+             shape = 17, size = 3.5, color = "blue", fill = "blue") +
+
+  # Régression Julia
+  geom_smooth(data = points_julia,
+              aes(x = log10_taille_pop, y = dnds),
+              method = "lm", se = FALSE, linetype = "dashed", color = "blue") +
+
+  # Annotations R²
   annotate("text",
            x = max(donnees_par_espece$log10_taille_pop),
            y = max(donnees_par_espece$moyenne_points),
-           label = paste0("R² = ", r2), hjust = 1, size = 4.5) +
+           label = paste0("R² simulation = ", r2), hjust = 1, size = 4.5) +
   annotate("text",
            x = max(donnees_par_espece$log10_taille_pop),
            y = max(donnees_par_espece$moyenne_points) - 0.1,
            label = paste0("p = ", pval), hjust = 1, size = 4.5) +
+  annotate("text",
+           x = min(points_julia$log10_taille_pop),
+           y = max(points_julia$dnds),
+           label = paste0("R² Julia = ", r2_julia), hjust = 0, size = 4.5, color = "blue") +
+  annotate("text",
+           x = min(donnees_par_espece$log10_taille_pop),
+           y = min(donnees_par_espece$moyenne_points),
+           label = paste0("R² Julia vs empirical = ", r2_comparaison),
+           hjust = 0, size = 4.5, color = "darkgreen") +
+
   theme_minimal() +
   labs(
     title = "dN/dS ~ log10(Population size)",
     x = "Population size (log10)",
     y = "dN/dS mean"
   )
-
+ggsave("/home/alafitte/Internship/Rapport de stage/Images/Results/Intermediate_recombination/Recent/Picture 2.png",width = 8, height = 6, dpi = 300)
 ```
-Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.
-```{r pressure, echo=FALSE}
-
-```
-
-
-
-
-```{r cars }
+```{r cars}
 library(tidyverse)
 
-# Charger les fichiers
-dossier <- "/home/alafitte/Internship/Rapport de stage/Données/Intermediate_recombination"
-fichiers <- file.path(dossier, sprintf("resultats_final_%02d.csv", 1:20))
+# Paramètre : taux de mutation mu
+mu <- 1e-6  # à adapter si nécessaire
+L <- 1000
 
+# Dossier contenant les fichiers CSV
+folder <- "/home/alafitte/Internship/Rapport de stage/Données/Intermediate_recombination"
+
+# Générer les chemins vers les fichiers
+files <- file.path(folder, sprintf("resultats_final_%02d.csv", 1:100))
+
+# Lecture et combinaison
+combined_data <- files %>%
+  map_dfr(read_csv, col_types = cols()) %>%
+  filter(!is.na(dN), !is.na(dS) !is.na(Pis), !is.na(Nw_sum.1), !is.na(Sw_sum), !is.na(Sw_sum.1) !is.na(branch_length))
+
+# Agrégation par espèce
+donnees_par_espece <- combined_data %>%
+  group_by(species) %>%
+  summarise(
+    dN_total = sum(dN, na.rm = TRUE),
+    dS_total = sum(dS, na.rm = TRUE),
+    Pis_total = sum(Pis, na.rm = TRUE),
+    Nw_total = sum(Nw_sum.1, na.rm = TRUE),
+    Sw_total.1 = sum(Sw_sum.1, na.rm = TRUE),
+    Sw_total = sum(Sw_sum, na.rm = TRUE),
+    moyenne_branch_length = mean(branch_length, na.rm = TRUE),
+    .groups = "drop"
+  ) %>%
+  mutate(
+    # Estimation de Ne à partir de pS = Pis_total / (4 * mu)
+    Ne_estime = Pis_total * L / (4 * mu * Sw_total),
+    log10_Ne = log10(Ne_estime),
+    moyenne_points = (dN_total / dS_total) / (Nw_total / Sw_total.1),
+    log10_branch_length = log10(moyenne_branch_length)
+  ) %>%
+  filter(is.finite(moyenne_points), is.finite(log10_Ne))
+
+# Modèle linéaire : pN/pS ~ log10(Ne estimé)
+modele <- lm(moyenne_points ~ log10_Ne, data = donnees_par_espece)
+resume_modele <- summary(modele)
+r2 <- round(resume_modele$r.squared, 3)
+pval <- signif(coef(resume_modele)[2, 4], 3)
+
+# Graphique
+ggplot(donnees_par_espece, aes(x = log10_Ne, y = moyenne_points, color = log10_branch_length)) +
+  geom_point(size = 3) +
+  geom_smooth(method = "lm", se = TRUE, color = "black", fill = "lightgray") +
+  scale_color_viridis_c(option = "plasma", name = "Branch length (log10)") +
+  annotate("text",
+           x = max(donnees_par_espece$log10_Ne),
+           y = max(donnees_par_espece$moyenne_points),
+           label = paste0("R² = ", r2), hjust = 1, size = 4.5) +
+  annotate("text",
+           x = max(donnees_par_espece$log10_Ne),
+           y = max(donnees_par_espece$moyenne_points) - 0.1,
+           label = paste0("p = ", pval), hjust = 1, size = 4.5) +
+  theme_minimal() +
+  labs(
+    title = "dN/dS ~ log10",
+    x = "Ne estimated (log10)",
+    y = "dN/dS moyen"
+  )
+
+ggsave("/home/alafitte/Internship/Rapport de stage/Images/Results/Intermediate_recombination/Recent/dN_dS vs N estimated.png", width = 8, height = 6, dpi = 300)
+
+```
+
+Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.
+```{r pressure, echo=FALSE}
+library(tidyverse)
+
+# === Chargement des fichiers ===
+dossier <- "/home/alafitte/Internship/Rapport de stage/Données/Intermediate_recombination"
+fichiers <- file.path(dossier, sprintf("resultats_final_%02d.csv", 1:100))
+
+# Lire tous les fichiers et ajouter une colonne 'fichier' pour traçabilité
 donnees_list <- fichiers %>%
   lapply(read_csv, col_types = cols()) %>%
-  set_names(sprintf("fichier_%02d", 1:20))
+  set_names(sprintf("fichier_%02d", 1:100))
 
 donnees <- bind_rows(
   lapply(seq_along(donnees_list), function(i) {
@@ -168,45 +358,274 @@ donnees <- bind_rows(
   })
 )
 
-# Nettoyage + transformation
+# === Nettoyage ===
 donnees <- donnees %>%
-  mutate(
-    across(c(pN_pS, taille_pop, Pis, branch_length), as.numeric)
+  mutate(across(c(dN_dS, taille_pop, Pis, pN_pS, branch_length), as.numeric)) %>%
+  filter(Pis > 0, dN_dS > 0)  # éviter log(0)
+
+# === Moyenne par espèce ===
+donnees_moyennes <- donnees %>%
+  group_by(species) %>%
+  summarise(
+    mean_dN_dS = mean(dN_dS, na.rm = TRUE),
+    mean_Pis = mean(Pis, na.rm = TRUE),
+    mean_taille_pop = mean(taille_pop, na.rm = TRUE),
+    mean_branch_length = mean(branch_length, na.rm = TRUE),
+    .groups = "drop"
   ) %>%
-  filter(Pis > 0, pN_pS > 0) %>%  # éviter log10(0)
   mutate(
-    log10_Pis = log10(Pis),
-    log10_pN_pS = log10(pN_pS)
-  )
+    log10_Pis = log10(mean_Pis),
+    log10_dN_dS = log10(mean_dN_dS)
+  ) %>%
+  filter(is.finite(log10_Pis), is.finite(log10_dN_dS))
 
-# === Régression linéaire ===
-modele <- lm(log10_pN_pS ~ log10_Pis, data = donnees)
-summary_modele <- summary(modele)
-coefs <- summary_modele$coefficients
+# === Aperçu des données utilisées ===
+cat("=== APERÇU DES DONNÉES MOYENNES PAR ESPÈCE POUR LA RÉGRESSION ===\n")
+print(donnees_moyennes, n = 20)
 
-# Extraire le R² et p-value
-r2 <- round(summary_modele$r.squared, 3)
-pval <- signif(coefs[2, 4], 3)
+# === Modèle de régression linéaire ===
+modele <- lm(log10_dN_dS ~ log10_Pis, data = donnees_moyennes)
+resume_modele <- summary(modele)
 
+# Extraire R² et p-value
+r2 <- round(resume_modele$r.squared, 3)
+pval <- signif(coef(resume_modele)[2, 4], 3)
 r2_label <- paste0("R² = ", r2)
 pval_label <- paste0("p = ", pval)
 
-# === Graphique avec gradient de couleur ===
-ggplot(donnees, aes(x = log10_Pis, y = log10_pN_pS, color = branch_length)) +
-  geom_point(alpha = 0.8, size = 2.5) +
+# === Graphique ===
+ggplot(donnees_moyennes, aes(x = log10_Pis, y = log10_dN_dS, color = log10(mean_branch_length))) +
+  geom_point(alpha = 0.8, size = 3) +
   geom_smooth(method = "lm", se = TRUE, color = "black", fill = "grey80") +
-  annotate("text", x = min(donnees$log10_Pis, na.rm = TRUE), 
-           y = max(donnees$log10_pN_pS, na.rm = TRUE), 
+  annotate("text", 
+           x = min(donnees_moyennes$log10_Pis, na.rm = TRUE), 
+           y = max(donnees_moyennes$log10_dN_dS, na.rm = TRUE), 
            label = r2_label, hjust = 0, size = 4.5) +
-  annotate("text", x = min(donnees$log10_Pis, na.rm = TRUE), 
-           y = max(donnees$log10_pN_pS, na.rm = TRUE) - 0.15, 
+  annotate("text", 
+           x = min(donnees_moyennes$log10_Pis, na.rm = TRUE), 
+           y = max(donnees_moyennes$log10_dN_dS, na.rm = TRUE) - 0.15, 
            label = pval_label, hjust = 0, size = 4.5) +
-  scale_color_viridis_c(option = "plasma", name = "Branch length") +
+  scale_color_viridis_c(option = "plasma", name = "Branch length (log10)") +
   theme_minimal() +
   labs(
-    title = "log(pN/pS) ~ log(pS)",
-    x = "log10(pS)",
+    title = "log10(dN/dS) ~ log10(pS) (par espèce)",
+    x = "log10(pS moyen)",
+    y = "log10(dN/dS moyen)"
+  )
+ggsave("/home/alafitte/Internship/Rapport de stage/Images/Results/Intermediate_recombination/Recent/Picture 3.png",width = 8, height = 6, dpi = 300)
+```
+
+
+
+
+```{r pressure, echo=FALSE}
+library(tidyverse)
+
+# === Chargement des fichiers ===
+dossier <- "/home/alafitte/Internship/Rapport de stage/Données/Intermediate_recombination"
+fichiers <- file.path(dossier, sprintf("resultats_final_%02d.csv", 1:100))
+
+# Lire tous les fichiers et ajouter une colonne 'fichier' pour traçabilité
+donnees_list <- fichiers %>%
+  lapply(read_csv, col_types = cols()) %>%
+  set_names(sprintf("fichier_%02d", 1:100))
+
+donnees <- bind_rows(
+  lapply(seq_along(donnees_list), function(i) {
+    df <- donnees_list[[i]]
+    df$fichier <- paste0("fichier_", i)
+    df
+  })
+)
+
+# === Nettoyage ===
+donnees <- donnees %>%
+  mutate(across(c(dN_dS, taille_pop, Pis, pN_pS, branch_length), as.numeric)) %>%
+  filter(Pis > 0, dN_dS > 0)  # éviter log(0)
+
+# === Moyenne par espèce ===
+donnees_moyennes <- donnees %>%
+  group_by(species) %>%
+  summarise(
+    mean_pN_pS = mean(pN_pS, na.rm = TRUE),
+    mean_Pis = mean(Pis, na.rm = TRUE),
+    mean_taille_pop = mean(taille_pop, na.rm = TRUE),
+    mean_branch_length = mean(branch_length, na.rm = TRUE),
+    .groups = "drop"
+  ) %>%
+  mutate(
+    log10_Pis = log10(mean_Pis),
+    log10_pN_pS = log10(mean_pN_pS)
+  ) %>%
+  filter(is.finite(log10_Pis), is.finite(log10_pN_pS))
+
+# === Aperçu des données utilisées ===
+cat("=== APERÇU DES DONNÉES MOYENNES PAR ESPÈCE POUR LA RÉGRESSION ===\n")
+print(donnees_moyennes, n = 20)
+
+# === Modèle de régression linéaire ===
+modele <- lm(log10_pN_pS ~ log10_Pis, data = donnees_moyennes)
+resume_modele <- summary(modele)
+
+# Extraire R² et p-value
+r2 <- round(resume_modele$r.squared, 3)
+pval <- signif(coef(resume_modele)[2, 4], 3)
+r2_label <- paste0("R² = ", r2)
+pval_label <- paste0("p = ", pval)
+
+# === Graphique ===
+ggplot(donnees_moyennes, aes(x = log10_Pis, y = log10_pN_pS, color = log10(mean_branch_length))) +
+  geom_point(alpha = 0.8, size = 3) +
+  geom_smooth(method = "lm", se = TRUE, color = "black", fill = "grey80") +
+  annotate("text", 
+           x = min(donnees_moyennes$log10_Pis, na.rm = TRUE), 
+           y = max(donnees_moyennes$log10_pN_pS, na.rm = TRUE), 
+           label = r2_label, hjust = 0, size = 4.5) +
+  annotate("text", 
+           x = min(donnees_moyennes$log10_Pis, na.rm = TRUE), 
+           y = max(donnees_moyennes$log10_pN_pS, na.rm = TRUE) - 0.15, 
+           label = pval_label, hjust = 0, size = 4.5) +
+  scale_color_viridis_c(option = "plasma", name = "Branch length (log10)") +
+  theme_minimal() +
+  labs(
+    title = "log10(pN/pS) ~ log10(pS) (par espèce)",
+    x = "log10(pS moyen)",
+    y = "log10(pN/pS moyen)"
+  )
+ggsave("/home/alafitte/Internship/Rapport de stage/Images/Results/Intermediate_recombination/Recent/Picture 4.png",width = 8, height = 6, dpi = 300)
+```
+
+```{r cars }
+# On utilise les librairies.
+library(tidyverse)
+
+# Dossier contenant les fichiers CSV
+folder <- "/home/alafitte/Internship/Rapport de stage/Données/Intermediate_recombination"
+
+# Génère les chemins vers les 50 fichiers CSV
+files <- file.path(folder, sprintf("resultats_final_%02d.csv", 1:100))
+
+# Lecture et combinaison des fichiers, filtrage des lignes incomplètes
+combined_data <- files %>%
+  map_dfr(read_csv, col_types = cols()) %>%
+  filter(if_all(c(Pin, Pis, Nw_sum, Sw_sum, branch_length, taille_pop), ~ !is.na(.))) %>%
+  filter(taille_pop > 0, Pis > 0, branch_length > 0)
+
+# Agrégation par espèce et taille de population
+donnees_par_espece <- combined_data %>%
+  group_by(species, taille_pop) %>%
+  summarise(
+    Pis_total = sum(Pis),
+    Sw_sum_total = sum(Sw_sum),
+    mean_point = Pis_total/Sw_sum_total,
+    moyenne_branch_length = mean(branch_length),
+    .groups = "drop"
+  ) %>%
+  mutate(
+    log10_mean_point = log10(mean_point),
+    log10_taille_pop = log10(taille_pop),
+    log10_branch_length = log10(moyenne_branch_length)
+  ) %>%
+  filter(is.finite(log10_mean_point), is.finite(log10_taille_pop), is.finite(log10_branch_length))
+
+# Modèle linéaire : log10(Pis_total) ~ log10(taille_pop)
+modele <- lm(log10_mean_point ~ log10_taille_pop, data = donnees_par_espece)
+resume_modele <- summary(modele)
+r2 <- round(resume_modele$r.squared, 3)
+pval <- signif(coef(resume_modele)[2, 4], 3)
+
+# Graphique
+ggplot(donnees_par_espece, aes(x = log10_taille_pop, y = log10_mean_point, color = log10_branch_length)) +
+  geom_point(size = 3) +
+  geom_smooth(method = "lm", se = TRUE, color = "black", fill = "lightgray") +
+  scale_color_viridis_c(option = "plasma", name = "log10(Branch length)") +
+  annotate("text",
+           x = max(donnees_par_espece$log10_taille_pop),
+           y = max(donnees_par_espece$log10_mean_point),
+           label = paste0("R² = ", r2), hjust = 1, size = 4.5) +
+  annotate("text",
+           x = max(donnees_par_espece$log10_taille_pop),
+           y = max(donnees_par_espece$log10_mean_point) - 0.15,
+           label = paste0("p = ", pval), hjust = 1, size = 4.5) +
+  theme_minimal() +
+  labs(
+    title = "log10(pS) ~ log10(Population size)",
+    x = "log10(population size)",
+    y = "log10(pS)"
+  )
+ggsave("/home/alafitte/Internship/Rapport de stage/Images/Results/Intermediate_recombination/Recent/Picture 5.png",width = 8, height = 6, dpi = 300)
+```
+
+
+```{r cars }
+# === Librairies ===
+library(tidyverse)
+library(lmodel2)
+
+# === Chargement et traitement des données ===
+folder <- "/home/alafitte/Internship/Rapport de stage/Données/Intermediate_recombination"
+files <- file.path(folder, sprintf("resultats_final_%02d.csv", 1:100))
+
+combined_data <- files %>%
+  map_dfr(read_csv, col_types = cols()) %>%
+  filter(if_all(c(Pin, Pis, Nw_sum, Sw_sum, dN, dS, Nw_sum.1, Sw_sum.1, branch_length, taille_pop), ~ !is.na(.))) %>%
+  filter(taille_pop > 0, Pis > 0, branch_length > 0)
+
+donnees_par_espece <- combined_data %>%
+  group_by(species, taille_pop) %>%
+  summarise(
+    Pis_total = sum(Pis),
+    Pin_total = sum(Pin),
+    Sw_sum_total = sum(Sw_sum),
+    Nw_sum_total = sum(Nw_sum),
+    mean_point_Pis = Pis_total / Sw_sum_total,
+    mean_point_Pin = Pin_total / Nw_sum_total,
+    mean_point_PinPis = mean_point_Pin / mean_point_Pis,
+    dS_total = sum(dS),
+    dN_total = sum(dN),
+    Sw_sum_1_total = sum(Sw_sum.1),
+    Nw_sum_1_total = sum(Nw_sum.1),
+    mean_point_dS = dS_total / Sw_sum_1_total,
+    mean_point_dN = dN_total / Nw_sum_1_total,
+    mean_point_dNdS = mean_point_dN / mean_point_dS,
+    moyenne_branch_length = mean(branch_length),
+    .groups = "drop"
+  ) %>%
+  mutate(
+    log10_branch_length = log10(moyenne_branch_length),
+    log10_PinPis = log10(mean_point_PinPis),
+    log10_dNdS = log10(mean_point_dNdS)
+  ) %>%
+  filter(
+    is.finite(log10_PinPis),
+    is.finite(log10_dNdS),
+    is.finite(log10_branch_length)
+  )
+
+# === Régression type II : Major Axis sur log10 ===
+modele <- lmodel2(log10_PinPis ~ log10_dNdS, data = donnees_par_espece)
+
+# Extraire les coefficients de la droite MA
+coeffs_MA <- modele$regression.results %>% filter(Method == "MA")
+intercept <- coeffs_MA$Intercept
+slope <- coeffs_MA$Slope
+r2 <- round(modele$rsquare, 3)
+
+# === Graphique ===
+ggplot(donnees_par_espece, aes(x = log10_dNdS, y = log10_PinPis, color = log10_branch_length)) +
+  geom_point(size = 3) +
+  geom_abline(slope = slope, intercept = intercept, color = "black", linewidth = 1) +
+  scale_color_viridis_c(option = "plasma", name = "log10(Branch length)") +
+  annotate("text",
+           x = max(donnees_par_espece$log10_dNdS),
+           y = max(donnees_par_espece$log10_PinPis),
+           label = paste0("R² = ", r2), hjust = 1, size = 4.5) +
+  theme_minimal() +
+  labs(
+    title = "Régression MA : log10(pN/pS) ~ log10(dN/dS)",
+    x = "log10(dN/dS)",
     y = "log10(pN/pS)"
   )
+ggsave("/home/alafitte/Internship/Rapport de stage/Images/Results/Intermediate_recombination/Recent/Picture 6.png",width = 8, height = 6, dpi = 300)
 
 ```
