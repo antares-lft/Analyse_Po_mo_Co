@@ -9,12 +9,12 @@ outdir=/beegfs/data/alafitte/Pop_size/Internship/Results/Population_size/N100
 
 mkdir -p ${outdir}
 
-for num in {1..30}
+for num in {1..20}
 do
 mkdir -p ${outdir}/sim_${num}
 echo "#!/bin/bash
 
-#SBATCH --time=2-00:00:00
+#SBATCH --time=0-02:00:00
 #SBATCH --cpus-per-task=8
 #SBATCH --mem=5G
 #SBATCH --partition=normal
