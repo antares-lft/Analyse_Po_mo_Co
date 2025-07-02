@@ -1,6 +1,6 @@
 # Analyse_Po_mo_Co
 
-1. Tree modelisation tree :
+1. Tree modelisation :
    - Visualisation of the tree. The colors represent the logarithme of the population size.
 2. Simulation script:
    - Modify the necessary scripts to run the scripts based on the parameters (recombination, population size).
